@@ -6,7 +6,7 @@ Examples:
 To validate your config on a certain tank server (tanks may have different local defaults, plugins installed, versions etc.) 
 This will send configs to corresponding tanks, populate Session structs and return them
 If your config is invalid the list of session.Failures will be non-empty and the status will be "failed"
-```go
+```
 {
     Tank: <tank>,
     Config: <config>,
@@ -23,12 +23,14 @@ You could run it without any prior validation, tank will validate it anyway or f
 package main
 import "github.com/load-tools/go-tankapi-client/tankapi"
 
-client := tankapi.NewClient()
-s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
-sessions := []tankapi.Session{s1}
-sessions = client.Validate(sessions) // optional
-sessions = client.Run(sessions)
-// you can .Poll sessions here
+func main() {
+	client := tankapi.NewClient()
+    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
+    sessions := []tankapi.Session{s1}
+    sessions = client.Validate(sessions) // optional
+    sessions = client.Run(sessions)
+    // you can .Poll sessions here
+}
 ```
 
 So, in a basic case "Run" function should be enough.
@@ -55,12 +57,14 @@ Please note that if your sessions do not have names by this time, it means that 
 package main
 import "github.com/load-tools/go-tankapi-client/tankapi"
 
-client := tankapi.NewClient()
-s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
-sessions := []tankapi.Session{s1}
-sessions = client.Validate(sessions) // optional
-sessions = client.Prepare(sessions)
-// .Poll sessions here
-sessions = client.Run(sessions)
-// .Poll sessions here
+func main() {
+	client := tankapi.NewClient()
+    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
+    sessions := []tankapi.Session{s1}
+    sessions = client.Validate(sessions) // optional
+    sessions = client.Prepare(sessions)
+    // .Poll sessions here
+    sessions = client.Run(sessions)
+    // .Poll sessions here
+}
 ```
