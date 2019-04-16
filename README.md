@@ -25,7 +25,7 @@ import "github.com/load-tools/go-tankapi-client/tankapi"
 
 func main() {
 	client := tankapi.NewClient()
-    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
+    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>")
     sessions := []tankapi.Session{s1}
     sessions = client.Validate(sessions) // optional
     sessions = client.Run(sessions)
@@ -59,7 +59,7 @@ import "github.com/load-tools/go-tankapi-client/tankapi"
 
 func main() {
 	client := tankapi.NewClient()
-    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>", "", "")
+    s1 := tankapi.NewSession("<tankapi address>", "<config in yaml format>")
     sessions := []tankapi.Session{s1}
     sessions = client.Validate(sessions) // optional
     sessions = client.Prepare(sessions)
