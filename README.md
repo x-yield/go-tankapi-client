@@ -50,7 +50,8 @@ This name is needed for further session polling and running
 
 "prepare" stage indicates that tank is prepared 
 
-And once all the servers a ready to start sending load, you trigger the "Run" function
+And once all the servers are ready to start sending load, you trigger the "Run" function.
+
 Please note that if your sessions do not have names by this time, it means that preparation has failed at some point and "Run" function will use session config to try to start a new session without preparation. 
 ```go
 package main
