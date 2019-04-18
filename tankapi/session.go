@@ -382,6 +382,7 @@ func (s *Session) isFailed() (bool, []string) {
 		}
 	case nil:
 	default:
+
 		log.Printf("unexpected tank failures response; expected string array, got: %T", failures)
 	}
 	return false, []string{}
