@@ -48,7 +48,7 @@ It will send preparing request to corresponding tanks, and they will download am
 Also it sets session "Name"s.
 This name is needed for further session polling and running
 
-"prepare" stage indicates that tank is prepared 
+"prepared" status indicates that tank is prepared 
 
 And once all the servers are ready to start sending load, you trigger the "Run" function.
 
