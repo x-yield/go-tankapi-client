@@ -364,10 +364,10 @@ func (s *Session) isFailed() (bool, []string) {
 	}
 
 	failures := sessionStatus["failures"]
-	fmt.Println(failures)
 	switch failures := failures.(type) {
 	case []interface{}:
 		if len(failures) > 0 {
+			fmt.Println(failures)
 			var e []string
 			for _, f := range failures {
 				switch f := f.(type) {
