@@ -16,6 +16,10 @@ const (
 	prepareBreakpoint = "start"
 )
 
+var netClient = &http.Client{
+	Timeout: time.Second * 10,
+}
+
 type Session struct {
 	Tank     *Tank
 	Config   *Config
@@ -48,7 +52,7 @@ func (s *Session) validate() (err error) {
 	if err != nil {
 		return
 	}
-	resp, err := http.Post(fmt.Sprintf("%v/validate", s.Tank.Url), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
+	resp, err := netClient.Post(fmt.Sprintf("%v/validate", s.Tank.Url), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
 	if err != nil {
 		err = errors.New(fmt.Sprintf("http.POST failed: %v", err))
 		log.Println(err)
@@ -114,7 +118,7 @@ func (s *Session) create() (err error) {
 	if err != nil {
 		return
 	}
-	resp, err := http.Post(fmt.Sprintf("%v/run?break=%v", s.Tank.Url, createBreakpoint), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
+	resp, err := netClient.Post(fmt.Sprintf("%v/run?break=%v", s.Tank.Url, createBreakpoint), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
 	if err != nil {
 		log.Printf("http.POST failed: %v", err)
 		s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
@@ -173,7 +177,7 @@ func (s *Session) prepare() (err error) {
 		}
 		fmt.Println(s.Name)
 	}
-	resp, err := http.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
+	resp, err := netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
 	if err != nil {
 		log.Printf("http.POST failed: %v", err)
 		s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
@@ -208,7 +212,7 @@ func (s *Session) run() (err error) {
 			return
 		}
 	}
-	resp, err := http.Get(fmt.Sprintf("%v/run?session=%v", s.Tank.Url, s.Name))
+	resp, err := netClient.Get(fmt.Sprintf("%v/run?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
 		log.Printf("http.POST failed: %v", err)
 		return fmt.Errorf("http.POST failed: %v", err)
@@ -244,7 +248,7 @@ func (s *Session) stop() (err error) {
 		s.setFailed([]string{err.Error()})
 		return
 	}
-	resp, err := http.Get(fmt.Sprintf("%v/stop?session=%v", s.Tank.Url, s.Name))
+	resp, err := netClient.Get(fmt.Sprintf("%v/stop?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
 		err = errors.New(fmt.Sprintf("http.POST failed: %v", err))
 		log.Println(err)
@@ -293,7 +297,7 @@ func (s *Session) getStatus() (map[string]interface{}, error) {
 	if err != nil {
 		return dummyMap, err
 	}
-	resp, err := http.Get(fmt.Sprintf("%v/status?session=%v", s.Tank.Url, s.Name))
+	resp, err := netClient.Get(fmt.Sprintf("%v/status?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
 		return dummyMap, err
 	}
