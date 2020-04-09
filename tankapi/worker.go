@@ -14,7 +14,7 @@ type Tank struct {
 
 // Sessions - gets all sessions on a tank with current statuses
 func (t Tank) Sessions() (sessions []Session, err error) {
-	resp, err := http.Get(fmt.Sprintf("%v/status", t.Url))
+	resp, err := netClient.Get(fmt.Sprintf("%v/status", t.Url))
 	if err != nil {
 		return
 	}
