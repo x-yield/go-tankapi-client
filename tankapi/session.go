@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -16,8 +18,17 @@ const (
 	prepareBreakpoint = "start"
 )
 
+func dialTimeout(network, addr string) (net.Conn, error) {
+	return net.DialTimeout(network, addr, time.Second*5)
+}
+
+var transport = http.Transport{
+	Dial: dialTimeout,
+}
+
 var netClient = &http.Client{
-	Timeout: time.Second * 10,
+	Transport: &transport,
+	Timeout:   time.Second * 10,
 }
 
 type Session struct {
