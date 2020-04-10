@@ -18,16 +18,15 @@ const (
 	prepareBreakpoint = "start"
 )
 
-func dialTimeout(network, addr string) (net.Conn, error) {
-	return net.DialTimeout(network, addr, time.Second*5)
-}
-
-var transport = http.Transport{
-	Dial: dialTimeout,
+var netTransport = &http.Transport{
+	Dial: (&net.Dialer{
+		Timeout: 5 * time.Second,
+	}).Dial,
+	TLSHandshakeTimeout: 5 * time.Second,
 }
 
 var netClient = &http.Client{
-	Transport: &transport,
+	Transport: netTransport,
 	Timeout:   time.Second * 10,
 }
 
