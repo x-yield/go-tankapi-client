@@ -309,6 +309,7 @@ func (s *Session) getStatus() (map[string]interface{}, error) {
 	}
 	resp, err := netClient.Get(fmt.Sprintf("%v/status?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
+		s.Status = "disconnect"
 		return dummyMap, err
 	}
 	defer resp.Body.Close()
