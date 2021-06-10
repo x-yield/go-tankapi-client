@@ -18,16 +18,24 @@ const (
 	prepareBreakpoint = "start"
 )
 
+var dialTimeout, tlsHandshakeTimeout, netClientTimeout time.Duration
+
+func init() {
+	dialTimeout 		= 5 * time.Second
+	tlsHandshakeTimeout = 5 * time.Second
+	netClientTimeout 	= 10 * time.Second
+}
+
 var netTransport = &http.Transport{
 	Dial: (&net.Dialer{
-		Timeout: 5 * time.Second,
+		Timeout: dialTimeout,
 	}).Dial,
-	TLSHandshakeTimeout: 5 * time.Second,
+	TLSHandshakeTimeout: tlsHandshakeTimeout,
 }
 
 var netClient = &http.Client{
 	Transport: netTransport,
-	Timeout:   time.Second * 10,
+	Timeout:   netClientTimeout,
 }
 
 type Session struct {

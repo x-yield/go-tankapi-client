@@ -1,5 +1,7 @@
 package tankapi
 
+import "time"
+
 type Client struct{}
 
 func NewClient() *Client {
@@ -81,4 +83,16 @@ func (*Client) Poll(sessions []*Session) []*Session {
 		<-c
 	}
 	return sessions
+}
+
+func (*Client) SetDialTimeout(timeout time.Duration) {
+	dialTimeout = timeout
+}
+
+func (*Client) SetTLSHandshakeTimeout(timeout time.Duration) {
+	tlsHandshakeTimeout = timeout
+}
+
+func (*Client) SetNetClientTimeout(timeout time.Duration) {
+	netClientTimeout = timeout
 }
