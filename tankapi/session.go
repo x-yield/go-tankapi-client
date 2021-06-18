@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	createBreakpoint  = "init"
-	prepareBreakpoint = "start"
+	createBreakpoint   = "init"
+	prepareBreakpoint  = "start"
+	prepareTryTimeout  = time.Minute * 2
 )
 
 var dialTimeout, tlsHandshakeTimeout, netClientTimeout time.Duration
@@ -195,12 +196,23 @@ func (s *Session) prepare() (err error) {
 		}
 		fmt.Println(s.Name)
 	}
-	resp, err := netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
-	if err != nil {
+
+	var resp *http.Response
+	try := time.Duration(0)
+	ticker := time.NewTicker(netClientTimeout)
+	for range ticker.C {
+		if try >= prepareTryTimeout {
+			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
+			return
+		}
+		resp, err = netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
+		if err == nil {
+			break
+		}
 		log.Printf("http.POST failed: %v", err)
-		s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
-		return
+		try += netClientTimeout
 	}
+
 	defer resp.Body.Close()
 	_, err = checkResponseCode(*resp)
 	if err != nil {
