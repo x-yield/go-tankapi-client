@@ -16,7 +16,7 @@ import (
 const (
 	createBreakpoint     = "init"
 	prepareBreakpoint    = "start"
-	prepareTryTimeout    = time.Minute * 2
+	prepareTryTimeout    = time.Minute
 	prepareAttemptsLimit = 4
 )
 
