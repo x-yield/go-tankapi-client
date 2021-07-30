@@ -199,18 +199,17 @@ func (s *Session) prepare() (err error) {
 
 	var resp *http.Response
 	try := time.Duration(0)
-	ticker := time.NewTicker(netClientTimeout)
-	for range ticker.C {
-		if try >= prepareTryTimeout {
-			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
-			return
-		}
+	for {
 		resp, err = netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
 		if err == nil {
 			break
 		}
 		log.Printf("http.POST failed: %v", err)
 		try += netClientTimeout
+		if try >= prepareTryTimeout {
+			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
+			return
+		}
 	}
 
 	defer resp.Body.Close()
