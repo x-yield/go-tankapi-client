@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	createBreakpoint   = "init"
-	prepareBreakpoint  = "start"
-	prepareTryTimeout  = time.Minute * 2
+	createBreakpoint     = "init"
+	prepareBreakpoint    = "start"
+	prepareTryTimeout    = time.Minute * 2
+	prepareAttemptsLimit = 4
 )
 
 var dialTimeout, tlsHandshakeTimeout, netClientTimeout time.Duration
@@ -198,15 +199,19 @@ func (s *Session) prepare() (err error) {
 	}
 
 	var resp *http.Response
-	try := time.Duration(0)
+	var longing time.Duration
+	start := time.Now()
+	j := 0
 	for {
 		resp, err = netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
 		if err == nil {
 			break
 		}
+
 		log.Printf("http.POST failed: %v", err)
-		try += netClientTimeout
-		if try >= prepareTryTimeout {
+		longing = time.Now().Sub(start)
+		j++
+		if longing >= prepareTryTimeout || j >= prepareAttemptsLimit {
 			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
 			return
 		}
