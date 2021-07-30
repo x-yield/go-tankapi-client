@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	createBreakpoint   = "init"
-	prepareBreakpoint  = "start"
-	prepareTryTimeout  = time.Minute * 2
+	createBreakpoint     = "init"
+	prepareBreakpoint    = "start"
+	prepareTryTimeout    = time.Minute
+	prepareAttemptsLimit = 4
 )
 
 var dialTimeout, tlsHandshakeTimeout, netClientTimeout time.Duration
@@ -185,6 +186,7 @@ func (s *Session) create() (err error) {
 // prepare - goroutine that prepares single tank, checks if failed.
 // if session has no name yet, starts a new one with "start" breakpoint
 func (s *Session) prepare() (err error) {
+	start := time.Now()
 	err = s.checkTank()
 	if err != nil {
 		return
@@ -194,19 +196,21 @@ func (s *Session) prepare() (err error) {
 		if err != nil {
 			return
 		}
-		fmt.Println(s.Name)
 	}
 
 	var resp *http.Response
-	try := time.Duration(0)
+	var longing time.Duration
+	j := 0
 	for {
 		resp, err = netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
 		if err == nil {
 			break
 		}
+
 		log.Printf("http.POST failed: %v", err)
-		try += netClientTimeout
-		if try >= prepareTryTimeout {
+		longing = time.Now().Sub(start)
+		j++
+		if longing >= prepareTryTimeout || j >= prepareAttemptsLimit {
 			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
 			return
 		}
