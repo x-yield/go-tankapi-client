@@ -186,6 +186,7 @@ func (s *Session) create() (err error) {
 // prepare - goroutine that prepares single tank, checks if failed.
 // if session has no name yet, starts a new one with "start" breakpoint
 func (s *Session) prepare() (err error) {
+	start := time.Now()
 	err = s.checkTank()
 	if err != nil {
 		return
@@ -195,12 +196,10 @@ func (s *Session) prepare() (err error) {
 		if err != nil {
 			return
 		}
-		fmt.Println(s.Name)
 	}
 
 	var resp *http.Response
 	var longing time.Duration
-	start := time.Now()
 	j := 0
 	for {
 		resp, err = netClient.Get(fmt.Sprintf("%v/run?session=%v&break=%v", s.Tank.Url, s.Name, prepareBreakpoint))
