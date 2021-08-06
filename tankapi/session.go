@@ -3,11 +3,9 @@ package tankapi
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -16,29 +14,27 @@ import (
 const (
 	createBreakpoint     = "init"
 	prepareBreakpoint    = "start"
-	prepareTryTimeout    = time.Minute
-	prepareAttemptsLimit = 4
 )
 
-var dialTimeout, tlsHandshakeTimeout, netClientTimeout time.Duration
-
-func init() {
-	dialTimeout 		= 5 * time.Second
-	tlsHandshakeTimeout = 5 * time.Second
-	netClientTimeout 	= 10 * time.Second
+type Timeouts struct {
+	DialTimeout time.Duration
+	TlsHandshakeTimeout time.Duration
+	NetClientTimeout time.Duration
+	PrepareTimeout time.Duration
+	PrepareAttemptsLimit int
 }
+var timeout = Timeouts{
+		DialTimeout:          5 * time.Second,
+		TlsHandshakeTimeout:  5 * time.Second,
+		NetClientTimeout:     10 * time.Second,
+		PrepareTimeout: 	  time.Minute,
+		PrepareAttemptsLimit: 4,
+	}
 
-var netTransport = &http.Transport{
-	Dial: (&net.Dialer{
-		Timeout: dialTimeout,
-	}).Dial,
-	TLSHandshakeTimeout: tlsHandshakeTimeout,
-}
-
-var netClient = &http.Client{
-	Transport: netTransport,
-	Timeout:   netClientTimeout,
-}
+var (
+	netTransport *http.Transport
+	netClient    *http.Client
+)
 
 type Session struct {
 	Tank     *Tank
@@ -72,28 +68,28 @@ func (s *Session) validate() (err error) {
 	if err != nil {
 		return
 	}
+
 	resp, err := netClient.Post(fmt.Sprintf("%v/validate", s.Tank.Url), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
 	if err != nil {
-		err = errors.New(fmt.Sprintf("http.POST failed: %v", err))
-		log.Println(err)
+		err = fmt.Errorf("http.POST failed: %w", err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
 	defer resp.Body.Close()
+
 	respBody, err := checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
 	var respJson map[string]interface{}
 	err = json.Unmarshal(respBody, &respJson)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("failed to unmarshal tank response body into json: %v", err))
-		log.Println(err)
+		err = fmt.Errorf("failed to unmarshal tank response body into json: %w", err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	validationErrors := respJson["errors"]
 	switch validationErrors := validationErrors.(type) {
 	case []interface{}:
@@ -102,8 +98,7 @@ func (s *Session) validate() (err error) {
 			for _, v := range validationErrors {
 				e = append(e, fmt.Sprintf("%v", v))
 			}
-			err = errors.New(fmt.Sprintf("session config is invalid %v", strings.Join(e, "\n")))
-			log.Println(err)
+			err = fmt.Errorf("session config is invalid: %v", strings.Join(e, "\n"))
 			s.setFailed(e)
 		}
 		return
@@ -113,16 +108,14 @@ func (s *Session) validate() (err error) {
 			for k, v := range validationErrors {
 				e = append(e, fmt.Sprintf("%v: %v", k, v))
 			}
-			err = errors.New(fmt.Sprintf("session config is invalid %v", strings.Join(e, "\n")))
-			log.Println(err)
+			err = fmt.Errorf("session config is invalid: %v", strings.Join(e, "\n"))
 			s.setFailed(e)
 		}
 		return
 	case nil:
 		return
 	default:
-		err = errors.New(fmt.Sprintf("unexpected tank validation response: %T", validationErrors))
-		log.Println(err)
+		err = fmt.Errorf("unexpected tank validation response: %T", validationErrors)
 		s.setFailed([]string{err.Error()})
 		return
 	}
@@ -138,48 +131,48 @@ func (s *Session) create() (err error) {
 	if err != nil {
 		return
 	}
+
 	resp, err := netClient.Post(fmt.Sprintf("%v/run?break=%v", s.Tank.Url, createBreakpoint), "application/yaml", bytes.NewReader([]byte(s.Config.Contents)))
 	if err != nil {
-		log.Printf("http.POST failed: %v", err)
-		s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
+		err = fmt.Errorf("http.POST failed: %w", err)
+		s.setFailed([]string{err.Error()})
 		return
 	}
 	defer resp.Body.Close()
+
 	respBody, err := checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
 	var respJson map[string]interface{}
 	err = json.Unmarshal(respBody, &respJson)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("failed to unmarshal tank response body into json: %v", err))
-		log.Println(err)
+		err = fmt.Errorf("failed to unmarshal tank response body into json: %w", err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	sessionName := respJson["session"]
 	switch sessionName := sessionName.(type) {
 	case string:
 		s.Name = sessionName
 	case nil:
-		err = errors.New("failed to create session, try validating your config")
-		log.Println(err)
+		err = fmt.Errorf("failed to create session, try validating your config")
 		s.setFailed([]string{err.Error()})
 		return
 	default:
-		err = errors.New(fmt.Sprintf("unexpected tank session creation response: %T", sessionName))
-		log.Println(err)
+		err = fmt.Errorf("unexpected tank session creation response: %T", sessionName)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	failed, failures := s.isFailed()
 	if failed {
-		err = errors.New(fmt.Sprintf("preparing session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures))
-		log.Println(err)
+		err = fmt.Errorf("preparing session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures)
 		s.setFailed(failures)
 	}
+
 	return
 }
 
@@ -207,26 +200,26 @@ func (s *Session) prepare() (err error) {
 			break
 		}
 
-		log.Printf("http.POST failed: %v", err)
+		err = fmt.Errorf("http.POST failed: %w", err)
 		longing = time.Now().Sub(start)
 		j++
-		if longing >= prepareTryTimeout || j >= prepareAttemptsLimit {
-			s.setFailed([]string{fmt.Sprintf("http.POST failed: %v", err)})
+		if longing >= timeout.PrepareTimeout || j >= timeout.PrepareAttemptsLimit {
+			s.setFailed([]string{err.Error()})
 			return
 		}
+		log.Println(err)
 	}
 
 	defer resp.Body.Close()
 	_, err = checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	failed, failures := s.isFailed()
 	if failed {
-		err = errors.New(fmt.Sprintf("preparing session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures))
-		log.Println(err)
+		err = fmt.Errorf("preparing session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures)
 		s.setFailed(failures)
 	}
 	return
@@ -245,61 +238,60 @@ func (s *Session) run() (err error) {
 			return
 		}
 	}
+
 	resp, err := netClient.Get(fmt.Sprintf("%v/run?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
-		log.Printf("http.POST failed: %v", err)
-		return fmt.Errorf("http.POST failed: %v", err)
+		err = fmt.Errorf("http.POST failed: %w", err)
+		return
 	}
 	defer resp.Body.Close()
+
 	_, err = checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	failed, failures := s.isFailed()
 	if failed {
-		err = errors.New(fmt.Sprintf("starting session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures))
-		log.Println(err)
+		err = fmt.Errorf("starting session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures)
 		s.setFailed(failures)
-		return
 	}
-	return nil
+	return
 }
 
 // stop - sends finishing request, checks if failed.
 func (s *Session) stop() (err error) {
 	if s.Tank.Url == "" || s.Tank == nil {
-		err = errors.New("session needs to have a tank")
-		log.Println(err)
+		err = fmt.Errorf("session needs to have a tank")
 		s.setFailed([]string{err.Error()})
 		return
 	}
 	if s.Name == "" {
-		err = errors.New("session has to have a name to stop")
-		log.Println(err)
+		err = fmt.Errorf("session has to have a name to stop")
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	resp, err := netClient.Get(fmt.Sprintf("%v/stop?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
-		err = errors.New(fmt.Sprintf("http.POST failed: %v", err))
-		log.Println(err)
+		err = fmt.Errorf("http.POST failed: %w", err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
 	defer resp.Body.Close()
+
 	_, err = checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return
 	}
+
 	//wait for session to reach "finished" stage
 	failed, failures := s.isFailed()
 	if failed {
 		s.setFailed(failures)
-		return errors.New(fmt.Sprintf("stopping session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures))
+		return fmt.Errorf("stopping session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures)
 	}
 	return nil
 }
@@ -313,7 +305,7 @@ func (s *Session) poll() (err error) {
 	failed, failures := s.isFailed()
 	if failed {
 		s.setFailed(failures)
-		return errors.New(fmt.Sprintf("stopping session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures))
+		return fmt.Errorf("stopping session %v@%v failed %v", s.Name, s.Tank.Url, s.Failures)
 	}
 	return nil
 }
@@ -330,23 +322,28 @@ func (s *Session) getStatus() (map[string]interface{}, error) {
 	if err != nil {
 		return dummyMap, err
 	}
+
 	resp, err := netClient.Get(fmt.Sprintf("%v/status?session=%v", s.Tank.Url, s.Name))
 	if err != nil {
+		err = fmt.Errorf("http.GET failed: %w", err)
 		s.Status = "disconnect"
 		return dummyMap, err
 	}
 	defer resp.Body.Close()
+
 	respBody, err := checkResponseCode(*resp)
 	if err != nil {
-		log.Println(err)
 		s.setFailed([]string{err.Error()})
 		return dummyMap, err
 	}
+
 	var respJson map[string]interface{}
 	err = json.Unmarshal(respBody, &respJson)
 	if err != nil {
+		err = fmt.Errorf("fail to unmarshal get status response: %w", err)
 		return dummyMap, err
 	}
+
 	switch stage := respJson["current_stage"].(type) {
 	case string:
 		s.Stage = stage
@@ -361,37 +358,40 @@ func (s *Session) getStatus() (map[string]interface{}, error) {
 func (s *Session) isPrepared() bool {
 	status, err := s.getStatus()
 	if err != nil {
+		log.Println(err)
 		return false
 	}
 	if status["current_stage"] == "prepare" && status["stage_completed"] == true {
 		return true
-	} else {
-		return false
 	}
+	log.Println(fmt.Errorf("current_stage is %s and stage_completed is %t", status["current_stage"], status["stage_completed"]))
+	return false
 }
 
 func (s *Session) isRunning() bool {
 	status, err := s.getStatus()
 	if err != nil {
+		log.Println(err)
 		return false
 	}
 	if status["current_stage"] == "poll" && status["stage_completed"] == false {
 		return true
-	} else {
-		return false
 	}
+	log.Println(fmt.Errorf("current_stage is %s and stage_completed is %t", status["current_stage"], status["stage_completed"]))
+	return false
 }
 
 func (s *Session) isFinished() bool {
 	status, err := s.getStatus()
 	if err != nil {
+		log.Println(err)
 		return false
 	}
 	if status["current_stage"] == "finished" && status["stage_completed"] == true {
 		return true
-	} else {
-		return false
 	}
+	log.Println(fmt.Errorf("current_stage is %s and stage_completed is %t", status["current_stage"], status["stage_completed"]))
+	return false
 }
 
 func (s *Session) isFailed() (bool, []string) {
@@ -405,7 +405,6 @@ func (s *Session) isFailed() (bool, []string) {
 	switch failures := failures.(type) {
 	case []interface{}:
 		if len(failures) > 0 {
-			fmt.Println(failures)
 			var e []string
 			for _, f := range failures {
 				switch f := f.(type) {
@@ -420,7 +419,6 @@ func (s *Session) isFailed() (bool, []string) {
 		}
 	case nil:
 	default:
-
 		log.Printf("unexpected tank failures response; expected string array, got: %T", failures)
 	}
 	return false, []string{}
@@ -435,32 +433,26 @@ func (s *Session) setFailed(failures []string) {
 
 func (s *Session) checkTank() (err error) {
 	if s.Tank.Url == "" || s.Tank == nil {
-		err = errors.New("session needs to have a tank")
-		log.Println(err)
+		err = fmt.Errorf("session needs to have a tank")
 		s.setFailed([]string{err.Error()})
-		return
 	}
-	return nil
+	return err
 }
 
 func (s *Session) checkConfig() (err error) {
 	if !s.hasConfig() {
-		err = errors.New("no config provided for validation")
-		log.Println(err)
+		err = fmt.Errorf("no config provided for validation")
 		s.setFailed([]string{err.Error()})
-		return
 	}
-	return nil
+	return err
 }
 
 func (s *Session) checkName() (err error) {
 	if !s.hasName() {
-		err = errors.New("session has to have a name to run or be polled")
-		log.Println(err)
+		err = fmt.Errorf("session has to have a name to run or be polled")
 		s.setFailed([]string{err.Error()})
-		return
 	}
-	return nil
+	return err
 }
 
 func (s Session) hasTank() bool {
@@ -490,12 +482,11 @@ func (s Session) hasConfig() bool {
 func checkResponseCode(resp http.Response) (respBody []byte, err error) {
 	respBody, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("failed to read tank response: %v %v", resp.StatusCode, err))
+		err = fmt.Errorf("failed to read tank response: %d %w", resp.StatusCode, err)
 		return
 	}
 	if resp.StatusCode != 200 {
-		err = errors.New(fmt.Sprintf("%d: %v", resp.StatusCode, string(respBody)))
-		return
+		err = fmt.Errorf("%d: %s", resp.StatusCode, string(respBody))
 	}
 	return
 }
